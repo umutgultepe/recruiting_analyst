@@ -9,27 +9,29 @@ from .dataclasses import Job, Location, Department, User, Role, RoleFunction, Se
 
 
 class JobManager:
-    def __init__(self, client: GreenhouseClient, cache_path: str = "src/analyst/config/jobs.yaml"):
-        self.client = client
+    def __init__(self, cache_path: str = "src/analyst/config/jobs.yaml"):
         self.cache_path = cache_path
         self.by_id = {}
         if os.path.exists(cache_path):
             self._load_cache()
 
-    def refresh_cache(self):
+    def refresh_cache(self, client: GreenhouseClient):
         """
         Refresh the job cache by fetching jobs from all relevant departments
         and filling their stages. Saves the results to YAML and updates internal containers.
+        
+        Args:
+            client: GreenhouseClient instance to use for API calls
         """
         all_jobs = []
         
         # Fetch jobs from each relevant department
         for department in RELEVANT_DEPARTMENTS:
-            jobs = self.client.get_jobs(department_name=department, include_closed=False)
+            jobs = client.get_jobs(department_name=department, include_closed=False)
             
             # Fill stages for each job
             for job in jobs:
-                job_with_stages = self.client.fill_stages(job)
+                job_with_stages = client.fill_stages(job)
                 all_jobs.append(job_with_stages)
         
         # Convert jobs to YAML-serializable format

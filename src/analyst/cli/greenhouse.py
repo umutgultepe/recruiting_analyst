@@ -80,10 +80,10 @@ def refresh_job_cache(cache_path):
     
     # Initialize client and job manager
     client = GreenhouseClient()
-    job_manager = JobManager(client, cache_path)
+    job_manager = JobManager(cache_path)
     
     # Refresh the cache
-    job_manager.refresh_cache()
+    job_manager.refresh_cache(client)
     
     click.echo("✅ Job cache refreshed successfully!")
     click.echo(f"📁 Cache saved to: {cache_path}")
@@ -100,7 +100,7 @@ def print_job_from_cache(job_id, cache_path):
     """
     # Initialize client and job manager
     client = GreenhouseClient()
-    job_manager = JobManager(client, cache_path)
+    job_manager = JobManager(cache_path)
     
     # Get the job from cache
     job = job_manager.get_by_id(job_id)
@@ -156,6 +156,99 @@ def print_job_from_cache(job_id, cache_path):
                 click.echo("     (No interviews)")
     else:
         click.echo("\n📊 No stages found for this job")
+
+
+@click.command()
+@click.argument('application_id', type=str)
+@click.option('--cache-path', default="src/analyst/config/jobs.yaml", help='Path to the job cache file')
+def get_application(application_id, cache_path):
+    """
+    Fetch and display application details from Greenhouse by ID.
+    
+    APPLICATION_ID: The ID of the application to fetch
+    """
+    # Initialize client and job manager
+    client = GreenhouseClient()
+    job_manager = JobManager(cache_path)
+    
+    # Get the application
+    application = client.get_application(application_id, job_manager)
+    
+    # Print application details
+    click.echo(f"📋 Application Details for ID: {application_id}")
+    click.echo("=" * 80)
+    
+    # Basic application info
+    click.echo(f"Job: {application.job.name} (ID: {application.job.id})")
+    click.echo(f"Current Stage: {application.current_stage.name} (ID: {application.current_stage.id})")
+
+    if not application.is_relevant_stage():
+        click.echo("Application Status: Non-relevant stage for this program")
+        return
+
+    if application.moved_to_stage_at:
+        click.echo(f"Moved to Stage: {application.moved_to_stage_at.strftime('%Y-%m-%d %H:%M:%S')}")
+    else:
+        click.echo("Moved to Stage information not available")
+    
+    # Stage type and status
+    if application.current_stage.is_schedulable:
+        click.echo("Stage Type: Schedulable Interview")
+    elif application.current_stage.is_take_home:
+        click.echo("Stage Type: Take Home")
+    else:
+        click.echo("Stage Type: Other")
+    
+    # Take-home specific information
+    if application.current_stage.is_take_home:
+        if application.take_home_submitted_at:
+            click.echo(f"Take Home Submitted: {application.take_home_submitted_at.strftime('%Y-%m-%d %H:%M:%S')}")
+        else:
+            click.echo("Take Home Status: Not submitted")
+        
+        if application.take_home_grading:
+            click.echo(f"Take Home Graded: {application.take_home_grading.submitted_at.strftime('%Y-%m-%d %H:%M:%S')}")
+            click.echo(f"Graded By: {application.take_home_grading.by.first_name} {application.take_home_grading.by.last_name}")
+            click.echo(f"Take Home Status: {application.get_take_home_status().value}")
+        else:
+            click.echo("Take Home Status: Not graded")
+    else:
+        status = application.get_stage_status()
+        click.echo(f"Application Status: {status.value}")
+        
+        # Print availability information
+        if application.availability_requested_at:
+            click.echo(f"Availability Requested: {application.availability_requested_at.strftime('%Y-%m-%d %H:%M:%S')}")
+        else:
+            click.echo("Availability Requested: Not requested")
+        
+        if application.availability_received_at:
+            click.echo(f"Availability Received: {application.availability_received_at.strftime('%Y-%m-%d %H:%M:%S')}")
+        else:
+            click.echo("Availability Received: Not received")
+        
+        # Print scheduled interviews
+        if application.interviews:
+            click.echo(f"Scheduled Interviews: {len(application.interviews)}")
+            for i, interview in enumerate(application.interviews, 1):
+                click.echo(f"  {i}. {interview.interview.name}")
+                click.echo(f"     Date: {interview.date.strftime('%Y-%m-%d %H:%M:%S')}")
+                click.echo(f"     Status: {interview.status.value}")
+                if interview.interviewers:
+                    interviewer_names = [f"{user.first_name} {user.last_name}" for user in interview.interviewers]
+                    click.echo(f"     Interviewers: {', '.join(interviewer_names)}")
+                
+                # Print scorecards if they exist
+                if interview.scorecards:
+                    click.echo(f"     Scorecards: {len(interview.scorecards)}")
+                    for j, scorecard in enumerate(interview.scorecards, 1):
+                        click.echo(f"       {j}. By: {scorecard.by.first_name} {scorecard.by.last_name}")
+                        click.echo(f"          Submitted: {scorecard.submitted_at.strftime('%Y-%m-%d %H:%M:%S')}")
+                        click.echo(f"          Decision: {scorecard.decision.value}")
+                else:
+                    click.echo("     Scorecards: None")
+        else:
+            click.echo("Scheduled Interviews: None")
 
 
 if __name__ == '__main__':

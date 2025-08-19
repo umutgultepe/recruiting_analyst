@@ -49,6 +49,14 @@ class JobStage:
     name: str
     interviews: List[Interview]
 
+    @property
+    def is_schedulable(self) -> bool:
+        return any(interview.schedulable for interview in self.interviews)
+
+    @property
+    def is_take_home(self) -> bool:
+        return not self.is_schedulable and "Take Home" in self.name
+
 
 @dataclass
 class User:
@@ -73,6 +81,12 @@ class Job:
     stages: List[JobStage]
 
 
+class TakeHomeStatus(Enum):
+    PENDING_SUBMISSION = "PENDING_SUBMISSION"
+    PENDING_GRADING = "PENDING_GRADING"
+    PENDING_DECISION = "PENDING_DECISION"
+
+
 class StageStatus(Enum):
     PENDING_AVAILABILITY_REQUEST = "PENDING_AVAILABILITY_REQUEST"
     WAITING_FOR_AVAILABILITY = "WAITING_FOR_AVAILABILITY"
@@ -88,6 +102,20 @@ class InterviewStatus(Enum):
     COMPLETE = "COMPLETE"
 
 
+class ScorecardDecision(Enum):
+    DEFINITELY_NOT = "DEFINITELY_NOT"
+    NO = "NO"
+    NO_DECISION = "NO_DECISION"
+    YES = "YES"
+    STRONG_YES = "STRONG_YES"
+
+@dataclass
+class Scorecard:
+    id: str
+    submitted_at: datetime
+    by: User
+    decision: ScorecardDecision
+
 @dataclass
 class ScheduledInterview:
     id: str
@@ -96,6 +124,14 @@ class ScheduledInterview:
     date: datetime
     status: InterviewStatus
     interviewers: List[User]
+    scorecards: List[Scorecard]
+
+
+@dataclass
+class TakeHomeGrading:
+    id: str
+    submitted_at: datetime
+    by: User
 
 
 @dataclass
@@ -105,7 +141,23 @@ class Application:
     moved_to_stage_at: datetime
     availability_requested_at: Optional[datetime]
     availability_received_at: Optional[datetime]
+    take_home_submitted_at: Optional[datetime]
+    take_home_grading: Optional[TakeHomeGrading]
     interviews: List[ScheduledInterview]
+
+    def is_relevant_stage(self) -> bool:
+        return self.current_stage.is_schedulable or self.is_take_home_stage()
+
+    def is_take_home_stage(self) -> bool:
+        return self.current_stage.is_take_home
+
+    def get_take_home_status(self) -> TakeHomeStatus:
+        if self.take_home_grading:
+            return TakeHomeStatus.PENDING_DECISION
+        elif self.take_home_submitted_at:
+            return TakeHomeStatus.PENDING_GRADING
+        else:
+            return TakeHomeStatus.PENDING_SUBMISSION
 
     def get_stage_status(self) -> StageStatus:
         if self.interviews:

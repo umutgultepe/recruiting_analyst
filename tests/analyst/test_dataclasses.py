@@ -57,6 +57,8 @@ class TestApplicationStageStatus:
             moved_to_stage_at=self.base_time,
             availability_requested_at=None,
             availability_received_at=None,
+            take_home_submitted_at=None,
+            take_home_grading=None,
             interviews=[]
         )
         
@@ -70,6 +72,8 @@ class TestApplicationStageStatus:
             moved_to_stage_at=self.base_time,
             availability_requested_at=self.base_time,
             availability_received_at=None,
+            take_home_submitted_at=None,
+            take_home_grading=None,
             interviews=[]
         )
         
@@ -83,6 +87,8 @@ class TestApplicationStageStatus:
             moved_to_stage_at=self.base_time,
             availability_requested_at=self.base_time - timedelta(hours=1),
             availability_received_at=self.base_time,
+            take_home_submitted_at=None,
+            take_home_grading=None,
             interviews=[]
         )
         
@@ -96,7 +102,8 @@ class TestApplicationStageStatus:
             created_at=self.base_time,
             date=self.base_time + timedelta(days=1),
             status=InterviewStatus.SCHEDULED,
-            interviewers=[self.interviewer]
+            interviewers=[self.interviewer],
+            scorecards=[]
         )
         
         application = Application(
@@ -105,6 +112,8 @@ class TestApplicationStageStatus:
             moved_to_stage_at=self.base_time,
             availability_requested_at=self.base_time - timedelta(hours=2),
             availability_received_at=self.base_time - timedelta(hours=1),
+            take_home_submitted_at=None,
+            take_home_grading=None,
             interviews=[scheduled_interview]
         )
         
@@ -118,7 +127,8 @@ class TestApplicationStageStatus:
             created_at=self.base_time,
             date=self.base_time - timedelta(hours=1),  # Past interview
             status=InterviewStatus.AWAITING_FEEDBACK,
-            interviewers=[self.interviewer]
+            interviewers=[self.interviewer],
+            scorecards=[]
         )
         
         application = Application(
@@ -127,6 +137,8 @@ class TestApplicationStageStatus:
             moved_to_stage_at=self.base_time,
             availability_requested_at=self.base_time - timedelta(hours=3),
             availability_received_at=self.base_time - timedelta(hours=2),
+            take_home_submitted_at=None,
+            take_home_grading=None,
             interviews=[scheduled_interview]
         )
         
@@ -140,7 +152,8 @@ class TestApplicationStageStatus:
             created_at=self.base_time,
             date=self.base_time - timedelta(hours=2),  # Past interview
             status=InterviewStatus.COMPLETE,
-            interviewers=[self.interviewer]
+            interviewers=[self.interviewer],
+            scorecards=[]
         )
         
         application = Application(
@@ -149,6 +162,8 @@ class TestApplicationStageStatus:
             moved_to_stage_at=self.base_time,
             availability_requested_at=self.base_time - timedelta(hours=4),
             availability_received_at=self.base_time - timedelta(hours=3),
+            take_home_submitted_at=None,
+            take_home_grading=None,
             interviews=[scheduled_interview]
         )
         
@@ -163,7 +178,8 @@ class TestApplicationStageStatus:
             created_at=self.base_time,
             date=self.base_time - timedelta(hours=2),
             status=InterviewStatus.COMPLETE,
-            interviewers=[self.interviewer]
+            interviewers=[self.interviewer],
+            scorecards=[]
         )
         
         # Second interview awaiting feedback
@@ -173,7 +189,8 @@ class TestApplicationStageStatus:
             created_at=self.base_time,
             date=self.base_time - timedelta(hours=1),
             status=InterviewStatus.AWAITING_FEEDBACK,
-            interviewers=[self.interviewer]
+            interviewers=[self.interviewer],
+            scorecards=[]
         )
         
         application = Application(
@@ -182,6 +199,8 @@ class TestApplicationStageStatus:
             moved_to_stage_at=self.base_time,
             availability_requested_at=self.base_time - timedelta(hours=5),
             availability_received_at=self.base_time - timedelta(hours=4),
+            take_home_submitted_at=None,
+            take_home_grading=None,
             interviews=[interview1, interview2]
         )
         
@@ -197,7 +216,8 @@ class TestApplicationStageStatus:
             created_at=self.base_time,
             date=self.base_time - timedelta(hours=3),
             status=InterviewStatus.COMPLETE,
-            interviewers=[self.interviewer]
+            interviewers=[self.interviewer],
+            scorecards=[]
         )
         
         # Second interview also complete
@@ -207,7 +227,8 @@ class TestApplicationStageStatus:
             created_at=self.base_time,
             date=self.base_time - timedelta(hours=2),
             status=InterviewStatus.COMPLETE,
-            interviewers=[self.interviewer]
+            interviewers=[self.interviewer],
+            scorecards=[]
         )
         
         application = Application(
@@ -216,6 +237,8 @@ class TestApplicationStageStatus:
             moved_to_stage_at=self.base_time,
             availability_requested_at=self.base_time - timedelta(hours=6),
             availability_received_at=self.base_time - timedelta(hours=5),
+            take_home_submitted_at=None,
+            take_home_grading=None,
             interviews=[interview1, interview2]
         )
         
@@ -230,7 +253,8 @@ class TestApplicationStageStatus:
             created_at=self.base_time,
             date=self.base_time + timedelta(days=1),  # Future interview
             status=InterviewStatus.SCHEDULED,
-            interviewers=[self.interviewer]
+            interviewers=[self.interviewer],
+            scorecards=[]
         )
         
         application = Application(
@@ -239,6 +263,8 @@ class TestApplicationStageStatus:
             moved_to_stage_at=self.base_time,
             availability_requested_at=self.base_time - timedelta(hours=2),
             availability_received_at=self.base_time - timedelta(hours=1),
+            take_home_submitted_at=None,
+            take_home_grading=None,
             interviews=[scheduled_interview]
         )
         
@@ -252,7 +278,8 @@ class TestApplicationStageStatus:
             created_at=self.base_time,
             date=self.base_time - timedelta(hours=1),
             status=InterviewStatus.AWAITING_FEEDBACK,
-            interviewers=[self.interviewer]
+            interviewers=[self.interviewer],
+            scorecards=[]
         )
         
         # Even with availability received, should prioritize interview status
@@ -262,6 +289,8 @@ class TestApplicationStageStatus:
             moved_to_stage_at=self.base_time,
             availability_requested_at=self.base_time - timedelta(hours=3),
             availability_received_at=self.base_time - timedelta(hours=2),
+            take_home_submitted_at=None,
+            take_home_grading=None,
             interviews=[scheduled_interview]
         )
         

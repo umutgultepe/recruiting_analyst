@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from ..config.greenhouse import API_KEY, DEPARTMENT_MAP
-from ..dataclasses import Job, Department, Location, User, Role, RoleFunction, Seniority, JobStage, Interview
+from ..dataclasses import Job, Department, Location, User, Role, RoleFunction, Seniority, JobStage, Interview, Application, TakeHomeGrading, ScheduledInterview, InterviewStatus, Scorecard, ScorecardDecision
 
 
 class GreenhouseClient:
@@ -280,3 +280,244 @@ class GreenhouseClient:
         # Update the job with stages
         job.stages = stages
         return job
+    
+    def get_application(self, application_id: str, job_manager: "JobManager") -> 'Application':
+        """
+        Get application details from Greenhouse API.
+        
+        Args:
+            application_id: The application ID to fetch
+            job_manager: JobManager instance to get job details
+            
+        Returns:
+            Application object with populated data
+            
+        Raises:
+            NotImplementedError: For non-take-home stages (not yet implemented)
+        """
+        
+        # Get application data
+        response = self._make_rate_limited_request("GET", f"{self.base_url}/applications/{application_id}")
+        
+        if response.status_code != 200:
+            raise Exception(f"Failed to fetch application {application_id}: {response.status_code} - {response.text}")
+        
+        app_data = response.json()
+        
+        # Get the job from job manager
+        # Extract job ID from the jobs array
+        jobs_data = app_data.get("jobs", [])
+        if not jobs_data:
+            raise ValueError(f"No job found in application {application_id}")
+        
+        job_id = str(jobs_data[0].get("id"))
+        job = job_manager.get_by_id(job_id)
+        
+        if not job:
+            raise ValueError(f"Job {job_id} not found in job manager for application {application_id}")
+        
+        # Find current stage
+        current_stage_data = app_data.get("current_stage", {})
+        current_stage_id = str(current_stage_data.get("id"))
+        current_stage = None
+        
+        for stage in job.stages:
+            if stage.id == current_stage_id:
+                current_stage = stage
+                break
+        
+        if not current_stage:
+            raise ValueError(f"Current stage {current_stage_id} not found in job {job_id}")
+        
+        # Check if current stage is relevant
+        if not current_stage.is_schedulable and not current_stage.is_take_home:
+            # Return basic application without further processing
+            return Application(
+                job=job,
+                current_stage=current_stage,
+                moved_to_stage_at=None,
+                availability_requested_at=None,
+                availability_received_at=None,
+                take_home_submitted_at=None,
+                take_home_grading=None,
+                interviews=[]
+            )
+        
+        # Get activity stream for the candidate
+        candidate_id = str(app_data.get("candidate_id"))
+        activity_response = self._make_rate_limited_request("GET", f"{self.base_url}/candidates/{candidate_id}/activity_feed")
+        
+        if activity_response.status_code != 200:
+            raise Exception(f"Failed to fetch activity feed for candidate {candidate_id}: {activity_response.status_code} - {activity_response.text}")
+        
+        activity_data = activity_response.json()
+        activities = activity_data.get("activities", [])
+        
+        # Find moved_to_stage_at from activity stream
+        moved_to_stage_at = None
+        for activity in activities:
+            body = activity.get("body", "")
+            if f"was moved into {current_stage.name} for" in body:
+                moved_to_stage_at = datetime.fromisoformat(activity.get("created_at", "").replace("Z", "+00:00"))
+                break
+        
+        # Handle take-home stage
+        if current_stage.is_take_home:
+            # Find take home submission time from activity stream
+            take_home_submitted_at = None
+            for activity in activities:
+                body = activity.get("body", "")
+                if "submitted a take home test" in body:
+                    take_home_submitted_at = datetime.fromisoformat(activity.get("created_at", "").replace("Z", "+00:00"))
+                    break
+            
+            # Get scorecards for the application
+            scorecards_response = self._make_rate_limited_request("GET", f"{self.base_url}/applications/{application_id}/scorecards")
+            
+            take_home_grading = None
+            if scorecards_response.status_code == 200:
+                scorecards = scorecards_response.json()
+                
+                # Find scorecard for the take-home interview
+                for scorecard in scorecards:
+                    interview_step = scorecard.get("interview_step", {})
+                    interview_id = str(interview_step.get("id"))
+                    
+                    # Check if this scorecard is for the take-home interview
+                    for interview in current_stage.interviews:
+                        if interview.id == interview_id:
+                            # Create TakeHomeGrading object
+                            submitted_by_data = scorecard.get("submitted_by", {})
+                            submitted_by = User(
+                                id=str(submitted_by_data.get("id", "")),
+                                first_name=submitted_by_data.get("first_name", ""),
+                                last_name=submitted_by_data.get("last_name", "")
+                            )
+                            
+                            take_home_grading = TakeHomeGrading(
+                                id=str(scorecard.get("id", "")),
+                                submitted_at=datetime.fromisoformat(scorecard.get("submitted_at", "").replace("Z", "+00:00")),
+                                by=submitted_by
+                            )
+                            break
+            
+            return Application(
+                job=job,
+                current_stage=current_stage,
+                moved_to_stage_at=moved_to_stage_at,
+                availability_requested_at=None,
+                availability_received_at=None,
+                take_home_submitted_at=take_home_submitted_at,
+                take_home_grading=take_home_grading,
+                interviews=[]
+            )
+        
+        # For non-take-home stages, process scheduled interviews and availability
+        # Get scheduled interviews for the application
+        interviews_response = self._make_rate_limited_request("GET", f"{self.base_url}/applications/{application_id}/scheduled_interviews")
+        
+        # Get all scorecards for the application (if any interviews are complete)
+        all_scorecards = {}
+        scorecards_response = self._make_rate_limited_request("GET", f"{self.base_url}/applications/{application_id}/scorecards")
+        if scorecards_response.status_code == 200:
+            scorecards_data = scorecards_response.json()
+            for scorecard_data in scorecards_data:
+                scorecard_id = str(scorecard_data.get("id", ""))
+                # Create User object for the scorecard submitter
+                submitted_by_data = scorecard_data.get("submitted_by", {})
+                submitted_by = User(
+                    id=str(submitted_by_data.get("id", "")),
+                    first_name=submitted_by_data.get("first_name", ""),
+                    last_name=submitted_by_data.get("last_name", "")
+                )
+                
+                # Create Scorecard object
+                scorecard = Scorecard(
+                    id=scorecard_id,
+                    submitted_at=datetime.fromisoformat(scorecard_data.get("submitted_at", "").replace("Z", "+00:00")),
+                    by=submitted_by,
+                    decision=ScorecardDecision(scorecard_data.get("overall_recommendation", "NO_DECISION").upper())
+                )
+                all_scorecards[scorecard_id] = scorecard
+        
+        interviews = []
+        if interviews_response.status_code == 200:
+            scheduled_interviews_data = interviews_response.json()
+            
+            for scheduled_interview_data in scheduled_interviews_data:
+                # Check if this interview is for the current stage
+                interview_data = scheduled_interview_data.get("interview", {})
+                interview_id = str(interview_data.get("id"))
+                
+                # Find matching interview in current stage
+                matching_interview = None
+                for interview in current_stage.interviews:
+                    if interview.id == interview_id:
+                        matching_interview = interview
+                        break
+                
+                if matching_interview:
+                    # Extract interviewers
+                    interviewers = []
+                    scorecards = []
+                    
+                    for interviewer_data in scheduled_interview_data.get("interviewers", []):
+                        # Parse name into first and last name
+                        full_name = interviewer_data.get("name", "")
+                        name_parts = full_name.split(" ", 1)
+                        first_name = name_parts[0] if name_parts else ""
+                        last_name = name_parts[1] if len(name_parts) > 1 else ""
+                        
+                        interviewer = User(
+                            id=str(interviewer_data.get("id", "")),
+                            first_name=first_name,
+                            last_name=last_name
+                        )
+                        interviewers.append(interviewer)
+                        
+                        # If interview is complete, find matching scorecard
+                        if scheduled_interview_data.get("status", "").lower() == "complete":
+                            scorecard_id = interviewer_data.get("scorecard_id")
+                            if scorecard_id and str(scorecard_id) in all_scorecards:
+                                scorecards.append(all_scorecards[str(scorecard_id)])
+                    
+                    # Create ScheduledInterview object
+                    start_data = scheduled_interview_data.get("start", {})
+                    start_datetime = start_data.get("date_time", "")
+                    
+                    scheduled_interview = ScheduledInterview(
+                        id=str(scheduled_interview_data.get("id", "")),
+                        interview=matching_interview,
+                        created_at=datetime.fromisoformat(scheduled_interview_data.get("created_at", "").replace("Z", "+00:00")),
+                        date=datetime.fromisoformat(start_datetime.replace("Z", "+00:00")),
+                        status=InterviewStatus(scheduled_interview_data.get("status", "scheduled").upper()),
+                        interviewers=interviewers,
+                        scorecards=scorecards
+                    )
+                    interviews.append(scheduled_interview)
+        
+        # Look for availability request in activity feed
+        availability_requested_at = None
+        availability_received_at = None
+        
+        for activity in activities:
+            body = activity.get("body", "")
+            
+            # Check for availability request
+            if f"manually updated" in body and "availability from Not requested to Requested for" in body and f"({current_stage.name})" in body:
+                availability_requested_at = datetime.fromisoformat(activity.get("created_at", "").replace("Z", "+00:00"))
+            
+            # Check for availability submission
+            if "submitted their availability for" in body and f"({current_stage.name})" in body:
+                availability_received_at = datetime.fromisoformat(activity.get("created_at", "").replace("Z", "+00:00"))
+        
+        return Application(
+            job=job,
+            current_stage=current_stage,
+            moved_to_stage_at=moved_to_stage_at,
+            availability_requested_at=availability_requested_at,
+            availability_received_at=availability_received_at,
+            take_home_submitted_at=None,
+            take_home_grading=None,
+            interviews=interviews
+        )
