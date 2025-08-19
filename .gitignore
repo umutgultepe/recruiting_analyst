@@ -178,3 +178,4 @@ Desktop.ini
 config.ini
 secrets.json
 src/analyst/config/greenhouse.py
+src/analyst/config/jobs.yaml

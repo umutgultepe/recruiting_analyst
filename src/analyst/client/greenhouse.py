@@ -4,11 +4,12 @@ Greenhouse API client for fetching recruiting data.
 
 import requests
 import base64
+import time
 from datetime import datetime
 from typing import Dict, List, Optional
 
 from ..config.greenhouse import API_KEY, DEPARTMENT_MAP
-from ..dataclasses import Job, Department, Location, User, Role, RoleFunction, Seniority
+from ..dataclasses import Job, Department, Location, User, Role, RoleFunction, Seniority, JobStage, Interview
 
 
 class GreenhouseClient:
@@ -33,6 +34,56 @@ class GreenhouseClient:
             'Content-Type': 'application/json'
         })
     
+    def _make_rate_limited_request(self, method: str, url: str, **kwargs) -> requests.Response:
+        """
+        Make a rate-limited request with exponential backoff for 429 errors.
+        
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            url: Request URL
+            **kwargs: Additional arguments for requests
+            
+        Returns:
+            requests.Response object
+            
+        Raises:
+            Exception: If max retries exceeded
+        """
+        max_retries = 5
+        base_delay = 1  # Start with 1 second delay
+        
+        for attempt in range(max_retries):
+            try:
+                response = self.session.request(method, url, **kwargs)
+                
+                if response.status_code == 429:
+                    # Rate limited - calculate delay with exponential backoff
+                    delay = base_delay * (2 ** attempt)  # 1, 2, 4, 8, 16 seconds
+                    
+                    # Check if response has Retry-After header
+                    retry_after = response.headers.get('Retry-After')
+                    if retry_after:
+                        try:
+                            delay = int(retry_after)
+                        except ValueError:
+                            pass  # Use calculated delay if header is invalid
+                    
+                    print(f"Rate limited (attempt {attempt + 1}/{max_retries}). Waiting {delay} seconds...")
+                    time.sleep(delay)
+                    continue
+                
+                return response
+                
+            except requests.exceptions.RequestException as e:
+                if attempt == max_retries - 1:
+                    raise Exception(f"Request failed after {max_retries} attempts: {e}")
+                
+                delay = base_delay * (2 ** attempt)
+                print(f"Request failed (attempt {attempt + 1}/{max_retries}). Retrying in {delay} seconds...")
+                time.sleep(delay)
+        
+        raise Exception(f"Max retries ({max_retries}) exceeded for request to {url}")
+    
     def get_jobs(self, department_name: str = None, include_closed: bool = False) -> List[Job]:
         """
         Fetch jobs from Greenhouse API.
@@ -56,7 +107,7 @@ class GreenhouseClient:
         if not include_closed:
             params["status"] = "open"
         
-        response = self.session.get(f"{self.base_url}/jobs", params=params)
+        response = self._make_rate_limited_request("GET", f"{self.base_url}/jobs", params=params)
         
         if response.status_code != 200:
             raise Exception(f"Failed to fetch jobs: {response.status_code} - {response.text}")
@@ -113,7 +164,8 @@ class GreenhouseClient:
                 coordinators=extract_users(job_data.get("hiring_team", {}).get("coordinators", [])),
                 sourcers=extract_users(job_data.get("hiring_team", {}).get("sourcers", [])),
                 departments=departments,
-                role=role
+                role=role,
+                stages=None
             )
             jobs.append(job)
         
@@ -184,3 +236,45 @@ class GreenhouseClient:
             raise ValueError(f"Cannot determine seniority for Engineer role in job: {job_name}")
         
         return Role(function=function, seniority=seniority)
+    
+    def fill_stages(self, job: Job) -> Job:
+        """
+        Fill stages and interviews for a job by calling the Greenhouse API.
+        
+        Args:
+            job: Job object to fill stages for
+            
+        Returns:
+            Job object with stages populated
+        """
+        # Get stages for the job
+        response = self._make_rate_limited_request("GET", f"{self.base_url}/jobs/{job.id}/stages")
+        
+        if response.status_code != 200:
+            raise Exception(f"Failed to fetch stages for job {job.id}: {response.status_code} - {response.text}")
+        
+        stages_data = response.json()
+        stages = []
+        
+        for stage_data in stages_data:
+            # Extract interviews from the stage data (already included in response)
+            interviews = []
+            interviews_data = stage_data.get("interviews", [])
+            
+            for interview_data in interviews_data:
+                interview = Interview(
+                    name=interview_data.get("name", ""),
+                    schedulable=interview_data.get("schedulable", False)
+                )
+                interviews.append(interview)
+            
+            # Create JobStage object
+            stage = JobStage(
+                name=stage_data.get("name", ""),
+                interviews=interviews
+            )
+            stages.append(stage)
+        
+        # Update the job with stages
+        job.stages = stages
+        return job

@@ -3,7 +3,7 @@ Main CLI entry point for Recruiting Analyst.
 """
 
 import click
-from .greenhouse import check_greenhouse_integration, get_jobs
+from .greenhouse import check_greenhouse_integration, get_jobs, refresh_job_cache, print_job_from_cache
 
 
 @click.group()
@@ -18,6 +18,8 @@ def analyst():
 # Add subcommands
 analyst.add_command(check_greenhouse_integration, name="check-greenhouse-integration")
 analyst.add_command(get_jobs, name="get-jobs")
+analyst.add_command(refresh_job_cache, name="refresh-job-cache")
+analyst.add_command(print_job_from_cache, name="print-job-from-cache")
 
 
 if __name__ == '__main__':

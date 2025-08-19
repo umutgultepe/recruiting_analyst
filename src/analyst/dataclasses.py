@@ -37,6 +37,18 @@ class Location:
 
 
 @dataclass
+class Interview:
+    name: str
+    schedulable: bool
+
+
+@dataclass
+class JobStage:
+    name: str
+    interviews: List[Interview]
+
+
+@dataclass
 class User:
     id: str
     first_name: str
@@ -55,3 +67,4 @@ class Job:
     sourcers: List[User]
     departments: List[Department]
     role: Role
+    stages: List[JobStage]
