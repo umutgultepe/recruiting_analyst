@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from ..config.greenhouse import API_KEY, DEPARTMENT_MAP
-from ..dataclasses import Job, Department, Location, User
+from ..dataclasses import Job, Department, Location, User, Role, RoleFunction, Seniority
 
 
 class GreenhouseClient:
@@ -98,6 +98,9 @@ class GreenhouseClient:
                     users.append(user)
                 return users
             
+            # Parse role from job name
+            role = self._parse_role_from_job_name(job_data.get("name", ""))
+            
             # Create Job object
             job = Job(
                 id=str(job_data.get("id", "")),
@@ -109,8 +112,48 @@ class GreenhouseClient:
                 recruiters=extract_users(job_data.get("hiring_team", {}).get("recruiters", [])),
                 coordinators=extract_users(job_data.get("hiring_team", {}).get("coordinators", [])),
                 sourcers=extract_users(job_data.get("hiring_team", {}).get("sourcers", [])),
-                departments=departments
+                departments=departments,
+                role=role
             )
             jobs.append(job)
         
         return jobs
+    
+    def _parse_role_from_job_name(self, job_name: str) -> Role:
+        """
+        Parse role information from job name.
+        
+        Args:
+            job_name: The name of the job
+            
+        Returns:
+            Role object with function and seniority
+            
+        Raises:
+            ValueError: If function is Engineer but seniority cannot be determined
+        """
+        job_name_lower = job_name.lower()
+        
+        # Determine function
+        if "software engineer" in job_name_lower or "swe" in job_name_lower:
+            function = RoleFunction.Engineer
+        else:
+            function = RoleFunction.Other
+        
+        # If function is not Engineer, seniority is Unknown
+        if function != RoleFunction.Engineer:
+            return Role(function=function, seniority=Seniority.Unknown)
+        
+        # For Engineer function, determine seniority
+        if any(phrase in job_name_lower for phrase in ["software engineer 3", "swe3", "engineer 3", "software engineer iii", "senior software engineer", "senior swe", "senior engineer"]):
+            seniority = Seniority.Senior  # Map SWE3 to Senior
+        elif any(phrase in job_name_lower for phrase in ["software engineer 2", "swe2", "engineer 2", "software engineer ii"]):
+            seniority = Seniority.SWE2
+        elif any(phrase in job_name_lower for phrase in ["software engineer 1", "swe1", "engineer 1", "software engineer i"]):
+            seniority = Seniority.SWE1
+        elif any(phrase in job_name_lower for phrase in ["staff software engineer", "staff swe", "staff engineer"]):
+            seniority = Seniority.Staff
+        else:
+            raise ValueError(f"Cannot determine seniority for Engineer role in job: {job_name}")
+        
+        return Role(function=function, seniority=seniority)

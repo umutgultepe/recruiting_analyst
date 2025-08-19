@@ -43,6 +43,9 @@ def get_jobs(department, include_closed, limit):
             if job.opened_at:
                 click.echo(f"   Opened: {job.opened_at.strftime('%Y-%m-%d')}")
             
+            # Display role information
+            click.echo(f"   Role: {job.role.function.value} - {job.role.seniority.value}")
+            
             # Display departments
             if job.departments:
                 dept_names = [dept.name for dept in job.departments]

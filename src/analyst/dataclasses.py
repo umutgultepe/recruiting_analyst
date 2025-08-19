@@ -1,6 +1,27 @@
 from dataclasses import dataclass
+from enum import Enum
 from datetime import datetime
 from typing import List, Optional
+
+
+class RoleFunction(Enum):
+    Engineer = "Engineer"
+    Other = "Other"
+
+
+class Seniority(Enum):
+    SWE1 = "SWE1"
+    SWE2 = "SWE2"
+    Senior = "Senior"
+    Staff = "Staff"
+    Unknown = "Unknown"
+
+
+@dataclass
+class Role:
+    function: RoleFunction
+    seniority: Seniority
+
 
 @dataclass
 class Department:
@@ -33,3 +54,4 @@ class Job:
     coordinators: List[User]
     sourcers: List[User]
     departments: List[Department]
+    role: Role
