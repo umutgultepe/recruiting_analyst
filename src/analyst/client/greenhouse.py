@@ -98,8 +98,8 @@ class GreenhouseClient:
                     users.append(user)
                 return users
             
-            # Parse role from job name
-            role = self._parse_role_from_job_name(job_data.get("name", ""))
+            # Parse role from job name and openings data
+            role = self._parse_role_from_job_name(job_data.get("name", ""), job_data.get("openings", []))
             
             # Create Job object
             job = Job(
@@ -119,12 +119,13 @@ class GreenhouseClient:
         
         return jobs
     
-    def _parse_role_from_job_name(self, job_name: str) -> Role:
+    def _parse_role_from_job_name(self, job_name: str, openings_data: list = None) -> Role:
         """
-        Parse role information from job name.
+        Parse role information from job name and openings data.
         
         Args:
             job_name: The name of the job
+            openings_data: List of openings data from the job
             
         Returns:
             Role object with function and seniority
@@ -144,16 +145,42 @@ class GreenhouseClient:
         if function != RoleFunction.Engineer:
             return Role(function=function, seniority=Seniority.Unknown)
         
-        # For Engineer function, determine seniority
-        if any(phrase in job_name_lower for phrase in ["software engineer 3", "swe3", "engineer 3", "software engineer iii", "senior software engineer", "senior swe", "senior engineer"]):
-            seniority = Seniority.Senior  # Map SWE3 to Senior
-        elif any(phrase in job_name_lower for phrase in ["software engineer 2", "swe2", "engineer 2", "software engineer ii"]):
-            seniority = Seniority.SWE2
-        elif any(phrase in job_name_lower for phrase in ["software engineer 1", "swe1", "engineer 1", "software engineer i"]):
-            seniority = Seniority.SWE1
-        elif any(phrase in job_name_lower for phrase in ["staff software engineer", "staff swe", "staff engineer"]):
-            seniority = Seniority.Staff
-        else:
+        # For Engineer function, try to determine seniority from job name first
+        try:
+            if any(phrase in job_name_lower for phrase in ["software engineer 3", "swe3", "engineer 3", "software engineer iii", "senior software engineer", "senior swe", "senior engineer"]):
+                seniority = Seniority.Senior  # Map SWE3 to Senior
+            elif any(phrase in job_name_lower for phrase in ["software engineer 2", "swe2", "engineer 2", "software engineer ii"]):
+                seniority = Seniority.SWE2
+            elif any(phrase in job_name_lower for phrase in ["software engineer 1", "swe1", "engineer 1", "software engineer i"]):
+                seniority = Seniority.SWE1
+            elif any(phrase in job_name_lower for phrase in ["staff software engineer", "staff swe", "staff engineer"]):
+                seniority = Seniority.Staff
+            else:
+                # If name parsing fails, try to get level from openings custom fields
+                if openings_data:
+                    for opening in openings_data:
+                        custom_fields = opening.get("custom_fields", {})
+                        level = custom_fields.get("level")
+                        if level:
+                            # Map level to seniority
+                            if level == "P2":
+                                seniority = Seniority.SWE1
+                            elif level == "P3":
+                                seniority = Seniority.SWE2
+                            elif level == "P4":
+                                seniority = Seniority.Senior
+                            elif level == "P5":
+                                seniority = Seniority.Staff
+                            else:
+                                continue  # Try next opening if level doesn't match
+                            break  # Found a valid level, break out of openings loop
+                    else:
+                        # No valid level found in any opening
+                        raise ValueError(f"Cannot determine seniority for Engineer role in job: {job_name}")
+                else:
+                    raise ValueError(f"Cannot determine seniority for Engineer role in job: {job_name}")
+        except ValueError:
+            # Re-raise the ValueError with the original message
             raise ValueError(f"Cannot determine seniority for Engineer role in job: {job_name}")
         
         return Role(function=function, seniority=seniority)
