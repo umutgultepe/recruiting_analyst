@@ -38,12 +38,14 @@ class Location:
 
 @dataclass
 class Interview:
+    id: str
     name: str
     schedulable: bool
 
 
 @dataclass
 class JobStage:
+    id: str
     name: str
     interviews: List[Interview]
 
@@ -53,6 +55,7 @@ class User:
     id: str
     first_name: str
     last_name: str
+
 
 @dataclass
 class Job:
@@ -68,3 +71,54 @@ class Job:
     departments: List[Department]
     role: Role
     stages: List[JobStage]
+
+
+class StageStatus(Enum):
+    PENDING_AVAILABILITY_REQUEST = "PENDING_AVAILABILITY_REQUEST"
+    WAITING_FOR_AVAILABILITY = "WAITING_FOR_AVAILABILITY"
+    PENDING_SCHEDULING = "PENDING_SCHEDULING"
+    INTERVIEW_SCHEDULED = "INTERVIEW_SCHEDULED"
+    PENDING_SCORECARD = "PENDING_SCORECARD"
+    PENDING_DECISION = "PENDING_DECISION"
+
+
+class InterviewStatus(Enum):
+    SCHEDULED = "SCHEDULED"
+    AWAITING_FEEDBACK = "AWAITING_FEEDBACK"
+    COMPLETE = "COMPLETE"
+
+
+@dataclass
+class ScheduledInterview:
+    id: str
+    interview: Interview
+    created_at: datetime
+    date: datetime
+    status: InterviewStatus
+    interviewers: List[User]
+
+
+@dataclass
+class Application:
+    job: Job
+    current_stage: JobStage
+    moved_to_stage_at: datetime
+    availability_requested_at: Optional[datetime]
+    availability_received_at: Optional[datetime]
+    interviews: List[ScheduledInterview]
+
+    def get_stage_status(self) -> StageStatus:
+        if self.interviews:
+            if all(interview.status == InterviewStatus.COMPLETE for interview in self.interviews):
+                return StageStatus.PENDING_DECISION
+            elif any(interview.status == InterviewStatus.AWAITING_FEEDBACK for interview in self.interviews):
+                return StageStatus.PENDING_SCORECARD
+            else:
+                return StageStatus.INTERVIEW_SCHEDULED
+        else:
+            if self.availability_received_at:
+                return StageStatus.PENDING_SCHEDULING
+            elif self.availability_requested_at:
+                return StageStatus.WAITING_FOR_AVAILABILITY
+            else:
+                return StageStatus.PENDING_AVAILABILITY_REQUEST

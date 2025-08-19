@@ -70,9 +70,10 @@ class JobManager:
                 },
                 'stages': [
                     {
+                        'id': stage.id,
                         'name': stage.name,
                         'interviews': [
-                            {'name': interview.name, 'schedulable': interview.schedulable}
+                            {'id': interview.id, 'name': interview.name, 'schedulable': interview.schedulable}
                             for interview in stage.interviews
                         ]
                     }
@@ -149,12 +150,14 @@ class JobManager:
                     interviews = []
                     for interview_data in stage_data.get('interviews', []):
                         interview = Interview(
+                            id=interview_data.get('id', ''),
                             name=interview_data.get('name', ''),
                             schedulable=interview_data.get('schedulable', False)
                         )
                         interviews.append(interview)
                     
                     stage = JobStage(
+                        id=stage_data.get('id', ''),
                         name=stage_data.get('name', ''),
                         interviews=interviews
                     )

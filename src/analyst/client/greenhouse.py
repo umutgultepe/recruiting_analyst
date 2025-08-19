@@ -263,6 +263,7 @@ class GreenhouseClient:
             
             for interview_data in interviews_data:
                 interview = Interview(
+                    id=str(interview_data.get("id", "")),
                     name=interview_data.get("name", ""),
                     schedulable=interview_data.get("schedulable", False)
                 )
@@ -270,6 +271,7 @@ class GreenhouseClient:
             
             # Create JobStage object
             stage = JobStage(
+                id=str(stage_data.get("id", "")),
                 name=stage_data.get("name", ""),
                 interviews=interviews
             )
