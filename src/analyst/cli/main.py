@@ -4,6 +4,7 @@ Main CLI entry point for Recruiting Analyst.
 
 import click
 from .greenhouse import check_greenhouse_integration, get_jobs, refresh_job_cache, print_job_from_cache, get_application
+from .reports import report_ai_rollout, report_job_pipeline
 
 
 @click.group()
@@ -21,6 +22,8 @@ analyst.add_command(get_jobs, name="get-jobs")
 analyst.add_command(refresh_job_cache, name="refresh-job-cache")
 analyst.add_command(print_job_from_cache, name="print-job-from-cache")
 analyst.add_command(get_application, name="get-application")
+analyst.add_command(report_ai_rollout, name="report-ai-rollout")
+analyst.add_command(report_job_pipeline, name="report-job-pipeline")
 
 
 if __name__ == '__main__':

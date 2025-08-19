@@ -136,6 +136,7 @@ class TakeHomeGrading:
 
 @dataclass
 class Application:
+    id: str
     job: Job
     current_stage: JobStage
     moved_to_stage_at: datetime

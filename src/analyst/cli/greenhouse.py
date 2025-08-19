@@ -232,6 +232,7 @@ def get_application(application_id, cache_path):
             click.echo(f"Scheduled Interviews: {len(application.interviews)}")
             for i, interview in enumerate(application.interviews, 1):
                 click.echo(f"  {i}. {interview.interview.name}")
+                click.echo(f"     Scheduled At: {interview.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
                 click.echo(f"     Date: {interview.date.strftime('%Y-%m-%d %H:%M:%S')}")
                 click.echo(f"     Status: {interview.status.value}")
                 if interview.interviewers:

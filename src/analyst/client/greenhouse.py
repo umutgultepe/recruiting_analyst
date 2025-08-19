@@ -281,58 +281,26 @@ class GreenhouseClient:
         job.stages = stages
         return job
     
-    def get_application(self, application_id: str, job_manager: "JobManager") -> 'Application':
+    def _hydrate_application(self, app_data: dict, job: 'Job', current_stage: 'JobStage') -> 'Application':
         """
-        Get application details from Greenhouse API.
+        Hydrate an application with detailed data from activity feed, interviews, and scorecards.
         
         Args:
-            application_id: The application ID to fetch
-            job_manager: JobManager instance to get job details
+            app_data: Raw application data from Greenhouse API
+            job: Job object for this application
+            current_stage: Current stage object for this application
             
         Returns:
-            Application object with populated data
-            
-        Raises:
-            NotImplementedError: For non-take-home stages (not yet implemented)
+            Hydrated Application object
         """
-        
-        # Get application data
-        response = self._make_rate_limited_request("GET", f"{self.base_url}/applications/{application_id}")
-        
-        if response.status_code != 200:
-            raise Exception(f"Failed to fetch application {application_id}: {response.status_code} - {response.text}")
-        
-        app_data = response.json()
-        
-        # Get the job from job manager
-        # Extract job ID from the jobs array
-        jobs_data = app_data.get("jobs", [])
-        if not jobs_data:
-            raise ValueError(f"No job found in application {application_id}")
-        
-        job_id = str(jobs_data[0].get("id"))
-        job = job_manager.get_by_id(job_id)
-        
-        if not job:
-            raise ValueError(f"Job {job_id} not found in job manager for application {application_id}")
-        
-        # Find current stage
-        current_stage_data = app_data.get("current_stage", {})
-        current_stage_id = str(current_stage_data.get("id"))
-        current_stage = None
-        
-        for stage in job.stages:
-            if stage.id == current_stage_id:
-                current_stage = stage
-                break
-        
-        if not current_stage:
-            raise ValueError(f"Current stage {current_stage_id} not found in job {job_id}")
+        application_id = str(app_data.get("id"))
+        candidate_id = str(app_data.get("candidate_id"))
         
         # Check if current stage is relevant
         if not current_stage.is_schedulable and not current_stage.is_take_home:
             # Return basic application without further processing
             return Application(
+                id=application_id,
                 job=job,
                 current_stage=current_stage,
                 moved_to_stage_at=None,
@@ -344,7 +312,6 @@ class GreenhouseClient:
             )
         
         # Get activity stream for the candidate
-        candidate_id = str(app_data.get("candidate_id"))
         activity_response = self._make_rate_limited_request("GET", f"{self.base_url}/candidates/{candidate_id}/activity_feed")
         
         if activity_response.status_code != 200:
@@ -352,6 +319,7 @@ class GreenhouseClient:
         
         activity_data = activity_response.json()
         activities = activity_data.get("activities", [])
+        notes = activity_data.get("notes", [])
         
         # Find moved_to_stage_at from activity stream
         moved_to_stage_at = None
@@ -402,6 +370,7 @@ class GreenhouseClient:
                             break
             
             return Application(
+                id=application_id,
                 job=job,
                 current_stage=current_stage,
                 moved_to_stage_at=moved_to_stage_at,
@@ -481,6 +450,24 @@ class GreenhouseClient:
                             if scorecard_id and str(scorecard_id) in all_scorecards:
                                 scorecards.append(all_scorecards[str(scorecard_id)])
                     
+                    # Find interview scheduling timestamp from notes
+                    interview_scheduled_at = None
+                    for note in notes:
+                        body = note.get("body", "")
+                        # Look for scheduling note: "... scheduled Ryan Brimble's <stage name> interviews for ..."
+                        if "scheduled" in body and f"{current_stage.name} interviews for" in body:
+                            interview_scheduled_at = datetime.fromisoformat(note.get("created_at", "").replace("Z", "+00:00"))
+                            break
+                    
+                    # Fallback: look for confirmation sent in actions array
+                    if interview_scheduled_at is None:
+                        for action in activities:
+                            body = action.get("body", "")
+                            # Look for confirmation sent: "... availability from Received to Confirmation sent for ... (<stage name>)"
+                            if "availability from Received to Confirmation sent for" in body and f"({current_stage.name})" in body:
+                                interview_scheduled_at = datetime.fromisoformat(action.get("created_at", "").replace("Z", "+00:00"))
+                                break
+                    
                     # Create ScheduledInterview object
                     start_data = scheduled_interview_data.get("start", {})
                     start_datetime = start_data.get("date_time", "")
@@ -488,7 +475,7 @@ class GreenhouseClient:
                     scheduled_interview = ScheduledInterview(
                         id=str(scheduled_interview_data.get("id", "")),
                         interview=matching_interview,
-                        created_at=datetime.fromisoformat(scheduled_interview_data.get("created_at", "").replace("Z", "+00:00")),
+                        created_at=interview_scheduled_at,
                         date=datetime.fromisoformat(start_datetime.replace("Z", "+00:00")),
                         status=InterviewStatus(scheduled_interview_data.get("status", "scheduled").upper()),
                         interviewers=interviewers,
@@ -512,6 +499,7 @@ class GreenhouseClient:
                 availability_received_at = datetime.fromisoformat(activity.get("created_at", "").replace("Z", "+00:00"))
         
         return Application(
+            id=application_id,
             job=job,
             current_stage=current_stage,
             moved_to_stage_at=moved_to_stage_at,
@@ -521,3 +509,100 @@ class GreenhouseClient:
             take_home_grading=None,
             interviews=interviews
         )
+
+    def get_application(self, application_id: str, job_manager: "JobManager") -> 'Application':
+        """
+        Get application details from Greenhouse API.
+        
+        Args:
+            application_id: The application ID to fetch
+            job_manager: JobManager instance to get job details
+            
+        Returns:
+            Application object with populated data
+            
+        Raises:
+            NotImplementedError: For non-take-home stages (not yet implemented)
+        """
+        
+        # Get application data
+        response = self._make_rate_limited_request("GET", f"{self.base_url}/applications/{application_id}")
+        
+        if response.status_code != 200:
+            raise Exception(f"Failed to fetch application {application_id}: {response.status_code} - {response.text}")
+        
+        app_data = response.json()
+        
+        # Get the job from job manager
+        # Extract job ID from the jobs array
+        jobs_data = app_data.get("jobs", [])
+        if not jobs_data:
+            raise ValueError(f"No job found in application {application_id}")
+        
+        job_id = str(jobs_data[0].get("id"))
+        job = job_manager.get_by_id(job_id)
+        
+        if not job:
+            raise ValueError(f"Job {job_id} not found in job manager for application {application_id}")
+        
+        # Find current stage
+        current_stage_data = app_data.get("current_stage", {})
+        current_stage_id = str(current_stage_data.get("id"))
+        current_stage = None
+        
+        for stage in job.stages:
+            if stage.id == current_stage_id:
+                current_stage = stage
+                break
+        
+        if not current_stage:
+            raise ValueError(f"Current stage {current_stage_id} not found in job {job_id}")
+        
+        # Use the shared hydration logic
+        return self._hydrate_application(app_data, job, current_stage)
+
+    def get_applications_for_job(self, job: 'Job') -> List['Application']:
+        """
+        Get all active applications for a specific job from Greenhouse API.
+        
+        Args:
+            job: Job object to fetch applications for
+            
+        Returns:
+            List of Application objects with populated data
+        """
+        # Get applications for the job
+        params = {"job_id": job.id, "status": "active"}
+        response = self._make_rate_limited_request("GET", f"{self.base_url}/applications", params=params)
+        
+        if response.status_code != 200:
+            raise Exception(f"Failed to fetch applications for job {job.id}: {response.status_code} - {response.text}")
+        
+        applications_data = response.json()
+        applications = []
+        
+        for app_data in applications_data:
+            # Find current stage
+            current_stage_data = app_data.get("current_stage", {})
+            current_stage_id = str(current_stage_data.get("id"))
+            current_stage = None
+            
+            for stage in job.stages:
+                if stage.id == current_stage_id:
+                    current_stage = stage
+                    break
+            
+            if not current_stage:
+                # Skip applications with unknown stages
+                continue
+            
+            # Hydrate the application using shared logic
+            try:
+                application = self._hydrate_application(app_data, job, current_stage)
+                applications.append(application)
+            except Exception as e:
+                # Log error but continue processing other applications
+                print(f"Warning: Failed to hydrate application {app_data.get('id')}: {e}")
+                continue
+        
+        return applications
