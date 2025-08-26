@@ -136,6 +136,29 @@ analyst report-takehome-snapshot > takehome_snapshot.csv
 - `location` - Job location
 - `department` - Department name
 
+#### `analyst report-interview-snapshot`
+Generate a CSV report of all applications currently at interview stages across all jobs.
+```bash
+analyst report-interview-snapshot > interview_snapshot.csv
+```
+
+**CSV Output Fields:**
+- `candidate_name` - Candidate's full name
+- `greenhouse_link` - Direct link to the application in Greenhouse
+- `stage_status` - Current interview stage status
+- `last_event_time_reference` - Name of the last relevant timestamp field
+- `blocked_hours` - Hours elapsed since the last relevant event
+- `moved_to_stage_at` - When candidate moved to the interview stage
+- `availability_requested_at` - When availability was requested
+- `availability_received_at` - When candidate submitted availability
+- `interview_scheduled_at` - When interview was scheduled
+- `interview_date` - Actual interview date/time
+- `scheduled_interviews_count` - Number of scheduled interviews
+- `completed_interviews_count` - Number of completed interviews
+- `recruiter_name` - Primary recruiter assigned
+- `location` - Job location
+- `department` - Department name
+
 ## Project Structure
 
 ```

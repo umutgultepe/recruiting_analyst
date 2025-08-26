@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 
@@ -212,3 +212,13 @@ class Application:
                 return StageStatus.WAITING_FOR_AVAILABILITY
             else:
                 return StageStatus.PENDING_AVAILABILITY_REQUEST
+
+@dataclass
+class ApplicationBlocker:
+    status: StageStatus
+    relevant_time_name: str
+    relevant_time: datetime
+
+    @property
+    def time_elapsed(self) -> datetime:
+        return datetime.now(timezone.utc) - self.relevant_time

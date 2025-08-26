@@ -411,11 +411,16 @@ class GreenhouseClient:
                 )
                 
                 # Create Scorecard object
+                recommendation = scorecard_data.get("overall_recommendation")
+                if recommendation is not None:
+                    recommendation = recommendation.upper()
+                else:
+                    recommendation = "NO_DECISION"
                 scorecard = Scorecard(
                     id=scorecard_id,
                     submitted_at=datetime.fromisoformat(scorecard_data.get("submitted_at", "").replace("Z", "+00:00")),
                     by=submitted_by,
-                    decision=ScorecardDecision(scorecard_data.get("overall_recommendation", "NO_DECISION").upper())
+                    decision=ScorecardDecision(recommendation)
                 )
                 all_scorecards[scorecard_id] = scorecard
         

@@ -272,3 +272,102 @@ def report_takehome_snapshot(cache_path):
             location,
             department
         ])
+
+
+@click.command()
+@click.option('--cache-path', default="src/analyst/config/jobs.yaml", help='Path to the job cache file')
+def report_interview_snapshot(cache_path):
+    """
+    Generate a CSV report on all applications currently at interview stages.
+    
+    Analyzes all jobs and outputs a CSV with interview application details.
+    """
+    # Load job manager and client
+    job_manager = JobManager(cache_path)
+    client = GreenhouseClient()
+    
+    # Create reporter and get interview applications
+    reporter = Reporter(job_manager, client)
+    interview_applications = reporter.interview_snapshot()
+    
+    # Create CSV writer
+    writer = csv.writer(sys.stdout)
+    
+    # Write CSV header
+    writer.writerow([
+        'candidate_name',
+        'greenhouse_link',
+        'stage_status',
+        'last_event_time_reference',
+        'blocked_hours',
+        'moved_to_stage_at',
+        'availability_requested_at',
+        'availability_received_at',
+        'interview_scheduled_at',
+        'interview_date',
+        'scheduled_interviews_count',
+        'completed_interviews_count',
+        'recruiter_name',
+        'location',
+        'department'
+    ])
+    
+    # Process each interview application and write to CSV
+    for application in interview_applications:
+        # Generate Greenhouse link
+        greenhouse_link = f"https://abnormal.greenhouse.io/people/{application.candidate_id}/applications/{application.id}"
+        
+        # Get application pending time information
+        application_blocker = reporter.get_application_blocker(application)
+        last_event_time_reference = application_blocker.relevant_time_name if application_blocker else None
+        blocked_hours = round(application_blocker.time_elapsed.total_seconds() / 3600, 1) if application_blocker else None
+        
+        # Get recruiter name
+        recruiter_name = "Unknown"
+        if application.job.recruiters:
+            primary_recruiter = application.job.recruiters[0]
+            recruiter_name = f"{primary_recruiter.first_name} {primary_recruiter.last_name}"
+        
+        # Get location and department
+        location = application.job.location.name if application.job.location else "Unknown"
+        department = application.job.departments[0].name if application.job.departments else "Unknown"
+        
+        # Count interviews and get interview scheduling timestamp
+        scheduled_interviews_count = len(application.interviews)
+        completed_interviews_count = len([i for i in application.interviews if i.status.value == "COMPLETE"])
+        
+        # Get interview scheduled timestamp and interview date
+        interview_scheduled_at = None
+        interview_date = None
+        if application.interviews:
+            valid_interviews = [i for i in application.interviews if i.created_at]
+            if valid_interviews:
+                earliest_interview = min(valid_interviews, key=lambda x: x.created_at)
+                if earliest_interview.created_at:
+                    interview_scheduled_at = earliest_interview.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                if earliest_interview.date:
+                    interview_date = earliest_interview.date.strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Format timestamps
+        moved_to_stage_at = application.moved_to_stage_at.strftime('%Y-%m-%d %H:%M:%S') if application.moved_to_stage_at else None
+        availability_requested_at = application.availability_requested_at.strftime('%Y-%m-%d %H:%M:%S') if application.availability_requested_at else None
+        availability_received_at = application.availability_received_at.strftime('%Y-%m-%d %H:%M:%S') if application.availability_received_at else None
+        
+        # Write row to CSV
+        writer.writerow([
+            application.candidate_name,
+            greenhouse_link,
+            application.get_stage_status().value,
+            last_event_time_reference,
+            blocked_hours,
+            moved_to_stage_at,
+            availability_requested_at,
+            availability_received_at,
+            interview_scheduled_at,
+            interview_date,
+            scheduled_interviews_count,
+            completed_interviews_count,
+            recruiter_name,
+            location,
+            department
+        ])
