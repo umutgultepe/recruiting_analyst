@@ -304,12 +304,16 @@ class GreenhouseClient:
                 job=job,
                 current_stage=current_stage,
                 moved_to_stage_at=None,
+                candidate_name=None,
+                candidate_id=candidate_id,
                 availability_requested_at=None,
                 availability_received_at=None,
                 take_home_submitted_at=None,
                 take_home_grading=None,
                 interviews=[]
             )
+        
+
         
         # Get activity stream for the candidate
         activity_response = self._make_rate_limited_request("GET", f"{self.base_url}/candidates/{candidate_id}/activity_feed")
@@ -321,12 +325,16 @@ class GreenhouseClient:
         activities = activity_data.get("activities", [])
         notes = activity_data.get("notes", [])
         
-        # Find moved_to_stage_at from activity stream
+        # Find moved_to_stage_at and candidate name from activity stream
         moved_to_stage_at = None
+        candidate_name = None
         for activity in activities:
             body = activity.get("body", "")
             if f"was moved into {current_stage.name} for" in body:
                 moved_to_stage_at = datetime.fromisoformat(activity.get("created_at", "").replace("Z", "+00:00"))
+                # Extract candidate name from the activity body
+                # Format: "<candidate_name> was moved into <stage_name> for <job_name>"
+                candidate_name = body.split(" was moved into ")[0].strip()
                 break
         
         # Handle take-home stage
@@ -374,6 +382,8 @@ class GreenhouseClient:
                 job=job,
                 current_stage=current_stage,
                 moved_to_stage_at=moved_to_stage_at,
+                candidate_name=candidate_name,
+                candidate_id=candidate_id,
                 availability_requested_at=None,
                 availability_received_at=None,
                 take_home_submitted_at=take_home_submitted_at,
@@ -454,7 +464,7 @@ class GreenhouseClient:
                     interview_scheduled_at = None
                     for note in notes:
                         body = note.get("body", "")
-                        # Look for scheduling note: "... scheduled Ryan Brimble's <stage name> interviews for ..."
+                        # Look for scheduling note: "... scheduled <candidate_name>'s <stage name> interviews for ..."
                         if "scheduled" in body and f"{current_stage.name} interviews for" in body:
                             interview_scheduled_at = datetime.fromisoformat(note.get("created_at", "").replace("Z", "+00:00"))
                             break
@@ -503,6 +513,8 @@ class GreenhouseClient:
             job=job,
             current_stage=current_stage,
             moved_to_stage_at=moved_to_stage_at,
+            candidate_name=candidate_name,
+            candidate_id=candidate_id,
             availability_requested_at=availability_requested_at,
             availability_received_at=availability_received_at,
             take_home_submitted_at=None,
@@ -582,7 +594,8 @@ class GreenhouseClient:
         applications = []
         
         for app_data in applications_data:
-            # Find current stage
+            if app_data.get("prospect"):
+                continue
             current_stage_data = app_data.get("current_stage", {})
             current_stage_id = str(current_stage_data.get("id"))
             current_stage = None

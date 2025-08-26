@@ -52,9 +52,12 @@ class TestApplicationStageStatus:
     def test_pending_availability_request(self):
         """Test status when no availability has been requested."""
         application = Application(
+            id="app1",
             job=self.job,
             current_stage=self.stage,
             moved_to_stage_at=self.base_time,
+            candidate_name="Test Candidate",
+            candidate_id="candidate1",
             availability_requested_at=None,
             availability_received_at=None,
             take_home_submitted_at=None,
@@ -67,9 +70,12 @@ class TestApplicationStageStatus:
     def test_waiting_for_availability(self):
         """Test status when availability has been requested but not received."""
         application = Application(
+            id="app2",
             job=self.job,
             current_stage=self.stage,
             moved_to_stage_at=self.base_time,
+            candidate_name="Test Candidate",
+            candidate_id="candidate2",
             availability_requested_at=self.base_time,
             availability_received_at=None,
             take_home_submitted_at=None,
@@ -82,9 +88,12 @@ class TestApplicationStageStatus:
     def test_pending_scheduling(self):
         """Test status when availability has been received but no interviews scheduled."""
         application = Application(
+            id="app3",
             job=self.job,
             current_stage=self.stage,
             moved_to_stage_at=self.base_time,
+            candidate_name="Test Candidate",
+            candidate_id="candidate3",
             availability_requested_at=self.base_time - timedelta(hours=1),
             availability_received_at=self.base_time,
             take_home_submitted_at=None,
@@ -107,9 +116,12 @@ class TestApplicationStageStatus:
         )
         
         application = Application(
+            id="app4",
             job=self.job,
             current_stage=self.stage,
             moved_to_stage_at=self.base_time,
+            candidate_name="Test Candidate",
+            candidate_id="candidate4",
             availability_requested_at=self.base_time - timedelta(hours=2),
             availability_received_at=self.base_time - timedelta(hours=1),
             take_home_submitted_at=None,
@@ -132,9 +144,12 @@ class TestApplicationStageStatus:
         )
         
         application = Application(
+            id="app5",
             job=self.job,
             current_stage=self.stage,
             moved_to_stage_at=self.base_time,
+            candidate_name="Test Candidate",
+            candidate_id="candidate5",
             availability_requested_at=self.base_time - timedelta(hours=3),
             availability_received_at=self.base_time - timedelta(hours=2),
             take_home_submitted_at=None,
@@ -157,9 +172,12 @@ class TestApplicationStageStatus:
         )
         
         application = Application(
+            id="app6",
             job=self.job,
             current_stage=self.stage,
             moved_to_stage_at=self.base_time,
+            candidate_name="Test Candidate",
+            candidate_id="candidate6",
             availability_requested_at=self.base_time - timedelta(hours=4),
             availability_received_at=self.base_time - timedelta(hours=3),
             take_home_submitted_at=None,
@@ -194,9 +212,12 @@ class TestApplicationStageStatus:
         )
         
         application = Application(
+            id="app7",
             job=self.job,
             current_stage=self.stage,
             moved_to_stage_at=self.base_time,
+            candidate_name="Test Candidate",
+            candidate_id="candidate7",
             availability_requested_at=self.base_time - timedelta(hours=5),
             availability_received_at=self.base_time - timedelta(hours=4),
             take_home_submitted_at=None,
@@ -232,9 +253,12 @@ class TestApplicationStageStatus:
         )
         
         application = Application(
+            id="app8",
             job=self.job,
             current_stage=self.stage,
             moved_to_stage_at=self.base_time,
+            candidate_name="Test Candidate",
+            candidate_id="candidate8",
             availability_requested_at=self.base_time - timedelta(hours=6),
             availability_received_at=self.base_time - timedelta(hours=5),
             take_home_submitted_at=None,
@@ -258,9 +282,12 @@ class TestApplicationStageStatus:
         )
         
         application = Application(
+            id="app9",
             job=self.job,
             current_stage=self.stage,
             moved_to_stage_at=self.base_time,
+            candidate_name="Test Candidate",
+            candidate_id="candidate9",
             availability_requested_at=self.base_time - timedelta(hours=2),
             availability_received_at=self.base_time - timedelta(hours=1),
             take_home_submitted_at=None,
@@ -284,9 +311,12 @@ class TestApplicationStageStatus:
         
         # Even with availability received, should prioritize interview status
         application = Application(
+            id="app10",
             job=self.job,
             current_stage=self.stage,
             moved_to_stage_at=self.base_time,
+            candidate_name="Test Candidate",
+            candidate_id="candidate10",
             availability_requested_at=self.base_time - timedelta(hours=3),
             availability_received_at=self.base_time - timedelta(hours=2),
             take_home_submitted_at=None,

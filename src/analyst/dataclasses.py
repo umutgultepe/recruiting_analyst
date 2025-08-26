@@ -80,6 +80,41 @@ class Job:
     role: Role
     stages: List[JobStage]
 
+    def has_take_home_stage(self) -> bool:
+        return any(stage.is_take_home for stage in self.stages)
+
+    def is_ai_eligible(self) -> bool:
+        """
+        Check if a job is eligible for AI-enabled features based on role criteria.
+        """
+        return self.role.function == RoleFunction.Engineer
+
+    def is_ai_enabled(self) -> bool:
+        """
+        Check if a job has AI-enabled features based on role and stage criteria.
+        
+        Returns:
+            True if AI is enabled, False otherwise
+        """
+        # Check if the role is for an engineer
+        if self.role.function != RoleFunction.Engineer:
+            return False
+
+        # Check for SWE1 or SWE2 level with "Take Home Test" stage
+        if self.role.seniority in [Seniority.SWE1, Seniority.SWE2]:
+            for stage in self.stages:
+                if "Take Home Test" in stage.name:
+                    return True
+        
+        # Check for Senior level with "DevAI Technical Screen" interview
+        if self.role.seniority == Seniority.Senior:
+            for stage in self.stages:
+                for interview in stage.interviews:
+                    if "DevAI Technical Screen" in interview.name:
+                        return True
+        
+        return False
+
 
 class TakeHomeStatus(Enum):
     PENDING_SUBMISSION = "PENDING_SUBMISSION"
@@ -140,6 +175,8 @@ class Application:
     job: Job
     current_stage: JobStage
     moved_to_stage_at: datetime
+    candidate_name: str
+    candidate_id: str
     availability_requested_at: Optional[datetime]
     availability_received_at: Optional[datetime]
     take_home_submitted_at: Optional[datetime]

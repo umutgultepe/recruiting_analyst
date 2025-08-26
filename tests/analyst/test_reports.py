@@ -4,7 +4,6 @@ Tests for the reports module.
 
 import pytest
 from datetime import datetime
-from src.analyst.cli.reports import is_ai_enabled
 from src.analyst.dataclasses import (
     Job, JobStage, Interview, User, Location, Department, Role,
     RoleFunction, Seniority
@@ -56,7 +55,7 @@ class TestReports:
             stages=[self.take_home_stage]
         )
         
-        assert is_ai_enabled(job) == True
+        assert job.is_ai_enabled() == True
     
     def test_is_ai_enabled_swe2_with_take_home(self):
         """Test AI enabled for SWE2 with Take Home Test stage."""
@@ -75,7 +74,7 @@ class TestReports:
             stages=[self.take_home_stage]
         )
         
-        assert is_ai_enabled(job) == True
+        assert job.is_ai_enabled() == True
     
     def test_is_ai_enabled_senior_with_devai_screen(self):
         """Test AI enabled for Senior with DevAI Technical Screen interview."""
@@ -102,7 +101,7 @@ class TestReports:
             stages=[devai_stage]
         )
         
-        assert is_ai_enabled(job) == True
+        assert job.is_ai_enabled() == True
     
     def test_is_ai_enabled_swe1_without_take_home(self):
         """Test AI disabled for SWE1 without Take Home Test stage."""
@@ -121,7 +120,7 @@ class TestReports:
             stages=[self.regular_stage]
         )
         
-        assert is_ai_enabled(job) == False
+        assert job.is_ai_enabled() == False
     
     def test_is_ai_enabled_staff_with_take_home(self):
         """Test AI disabled for Staff level even with Take Home Test stage."""
@@ -140,7 +139,7 @@ class TestReports:
             stages=[self.take_home_stage]
         )
         
-        assert is_ai_enabled(job) == False
+        assert job.is_ai_enabled() == False
     
     def test_is_ai_enabled_non_engineer_role(self):
         """Test AI disabled for non-engineer roles."""
@@ -159,7 +158,7 @@ class TestReports:
             stages=[self.take_home_stage]
         )
         
-        assert is_ai_enabled(job) == False
+        assert job.is_ai_enabled() == False
     
     def test_is_ai_enabled_multiple_stages_with_take_home(self):
         """Test AI enabled when Take Home Test is one of multiple stages."""
@@ -178,7 +177,7 @@ class TestReports:
             stages=[self.regular_stage, self.take_home_stage]
         )
         
-        assert is_ai_enabled(job) == True
+        assert job.is_ai_enabled() == True
     
     def test_is_ai_enabled_partial_take_home_name(self):
         """Test AI enabled when stage name contains 'Take Home Test'."""
@@ -205,7 +204,7 @@ class TestReports:
             stages=[partial_take_home_stage]
         )
         
-        assert is_ai_enabled(job) == True
+        assert job.is_ai_enabled() == True
     
     def test_is_ai_enabled_senior_without_devai_screen(self):
         """Test AI disabled for Senior without DevAI Technical Screen interview."""
@@ -232,4 +231,4 @@ class TestReports:
             stages=[regular_stage]
         )
         
-        assert is_ai_enabled(job) == False
+        assert job.is_ai_enabled() == False

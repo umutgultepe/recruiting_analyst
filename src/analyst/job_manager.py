@@ -187,5 +187,3 @@ class JobManager:
             except Exception as e:
                 print(f"Warning: Could not load job {job_data.get('id', 'unknown')}: {e}")
                 continue
-        
-        print(f"Loaded {len(self.by_id)} jobs from cache file {self.cache_path}")

@@ -44,6 +44,8 @@ class TestGreenhouseClient:
         assert application.job.id == "5179819"
         assert application.current_stage.id == "12862064"
         assert application.current_stage.name == "Evaluation Stage 3"
+        assert application.candidate_name == "John Doe"
+        assert application.candidate_id == "138678330"
         
         # Verify moved_to_stage_at was parsed from activity feed
         expected_time = datetime(2025, 8, 19, 11, 9, 0, 231000).replace(tzinfo=timezone.utc)

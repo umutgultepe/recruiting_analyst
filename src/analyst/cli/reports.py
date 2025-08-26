@@ -2,44 +2,15 @@
 Reports module for generating recruiting analytics reports.
 """
 
+import csv
+import sys
 import click
+from ..client.greenhouse import GreenhouseClient
 from ..dataclasses import Job, RoleFunction, Seniority
 from ..job_manager import JobManager
 
 
-def is_ai_eligible(job: Job) -> bool:
-    """
-    Check if a job is eligible for AI-enabled features based on role and stage criteria.
-    """
-    return job.role.function == RoleFunction.Engineer
 
-
-def is_ai_enabled(job: Job) -> bool:
-    """
-    Check if a job has AI-enabled features based on role and stage criteria.
-    
-    Args:
-        job: Job object to check
-        
-    Returns:
-        True if AI is enabled, False otherwise
-    """
-    # Check if the role is for an engineer
-    if job.role.function != RoleFunction.Engineer:
-        return False
-
-    # Check for SWE1 or SWE2 level with "Take Home Test" stage
-    if job.role.seniority in [Seniority.SWE1, Seniority.SWE2]:
-        for stage in job.stages:
-            if "Take Home Test" in stage.name:
-                return True
-    
-    # Check for Senior level with "DevAI Technical Screen" interview
-    if job.role.seniority == Seniority.Senior:
-        for stage in job.stages:
-            for interview in stage.interviews:
-                if "DevAI Technical Screen" in interview.name:
-                    return True
     
 @click.command()
 @click.option('--cache-path', default="src/analyst/config/jobs.yaml", help='Path to the job cache file')
@@ -49,9 +20,6 @@ def report_ai_rollout(cache_path):
     
     Analyzes all jobs in the JobManager and outputs a CSV with AI eligibility and enabled status.
     """
-    import csv
-    import sys
-    
     # Load job manager
     job_manager = JobManager(cache_path)
     
@@ -76,10 +44,10 @@ def report_ai_rollout(cache_path):
     # Process each job and write to CSV
     for job in all_jobs:
         # Determine AI eligibility
-        ai_eligible = is_ai_eligible(job)
+        ai_eligible = job.is_ai_eligible()
         
         # Determine AI enabled status (only if eligible)
-        ai_enabled = is_ai_enabled(job) if ai_eligible else False
+        ai_enabled = job.is_ai_enabled() if ai_eligible else False
         
         # Get recruiter name
         if job.recruiters:
@@ -118,11 +86,6 @@ def report_job_pipeline(job_id, cache_path):
     
     Analyzes all active applications for a specific job and outputs a CSV with pipeline status.
     """
-    import csv
-    import sys
-    from ..client.greenhouse import GreenhouseClient
-    from ..job_manager import JobManager
-    
     # Load job manager and client
     job_manager = JobManager(cache_path)
     client = GreenhouseClient()
@@ -162,15 +125,17 @@ def report_job_pipeline(job_id, cache_path):
     # Process each application and write to CSV
     for application in applications:
         # Get stage status
-        stage_status = application.get_stage_status().value if application.is_relevant_stage() else "Non-relevant"
         
         # Determine stage type
         if application.is_take_home_stage():
             stage_type = "take home"
+            stage_status = application.get_take_home_status().value
         elif application.is_relevant_stage():
             stage_type = "interview"
+            stage_status = application.get_stage_status().value
         else:
             stage_type = "other"
+            stage_status = "Non-relevant"
 
         if stage_type == "other":
             continue
