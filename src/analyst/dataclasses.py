@@ -170,6 +170,17 @@ class TakeHomeGrading:
 
 
 @dataclass
+class ApplicationBlocker:
+    status: StageStatus
+    relevant_time_name: str
+    relevant_time: datetime
+
+    @property
+    def time_elapsed(self) -> datetime:
+        return datetime.now(timezone.utc) - self.relevant_time
+
+
+@dataclass
 class Application:
     id: str
     job: Job
@@ -212,13 +223,26 @@ class Application:
                 return StageStatus.WAITING_FOR_AVAILABILITY
             else:
                 return StageStatus.PENDING_AVAILABILITY_REQUEST
-
-@dataclass
-class ApplicationBlocker:
-    status: StageStatus
-    relevant_time_name: str
-    relevant_time: datetime
-
-    @property
-    def time_elapsed(self) -> datetime:
-        return datetime.now(timezone.utc) - self.relevant_time
+        
+    def get_application_blocker(self) -> Optional[ApplicationBlocker]:
+        relevant_time_name = None
+        relevant_time = None
+        if self.get_stage_status() == StageStatus.PENDING_AVAILABILITY_REQUEST:
+            relevant_time_name = "moved_to_stage_at"
+            relevant_time = self.moved_to_stage_at
+        elif self.get_stage_status() == StageStatus.WAITING_FOR_AVAILABILITY:
+            relevant_time_name = "availability_requested_at"
+            relevant_time = self.availability_requested_at
+        elif self.get_stage_status() == StageStatus.PENDING_SCHEDULING:
+            relevant_time_name = "availability_received_at"
+            relevant_time = self.availability_received_at
+        elif self.get_stage_status() in [StageStatus.PENDING_SCORECARD, StageStatus.PENDING_DECISION]:
+            relevant_time_name = "interview_date"
+            earliest_interview = min(self.interviews, key=lambda x: x.created_at)
+            relevant_time = earliest_interview.date
+        if relevant_time:
+            return ApplicationBlocker(
+                status=self.get_stage_status(),
+                relevant_time_name=relevant_time_name,
+                relevant_time=relevant_time
+            )
