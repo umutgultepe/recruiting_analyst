@@ -93,6 +93,10 @@ class JobManager:
         
         print(f"Cache refreshed: {len(all_jobs)} jobs saved to {self.cache_path}")
 
+    def get_all_jobs(self):
+        """Get all jobs."""
+        return list(self.by_id.values())    
+
     def get_by_id(self, id: str):
         """Get a job by its ID."""
         return self.by_id.get(id)

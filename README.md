@@ -117,6 +117,25 @@ analyst report-job-pipeline 123456789 > pipeline_report.csv
 - `location` - Job location
 - `department` - Department name
 
+#### `analyst report-takehome-snapshot`
+Generate a CSV report of all applications currently at take-home stages across all jobs.
+```bash
+analyst report-takehome-snapshot > takehome_snapshot.csv
+```
+
+**CSV Output Fields:**
+- `candidate_name` - Candidate's full name
+- `greenhouse_link` - Direct link to the application in Greenhouse
+- `current_take_home_stage` - Name of the current take-home stage
+- `stage_status` - Current take-home status (pending submission, pending grading, pending decision)
+- `moved_to_stage_at` - When candidate moved to the take-home stage
+- `take_home_submitted_at` - When take-home was submitted
+- `take_home_graded_at` - When take-home was graded
+- `hours_pending_grading` - Hours elapsed since submission (if not yet graded)
+- `recruiter_name` - Primary recruiter assigned
+- `location` - Job location
+- `department` - Department name
+
 ## Project Structure
 
 ```

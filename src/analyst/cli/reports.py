@@ -6,12 +6,12 @@ import csv
 import sys
 import click
 from ..client.greenhouse import GreenhouseClient
-from ..dataclasses import Job, RoleFunction, Seniority
+from ..dataclasses import Job, RoleFunction, Seniority, TakeHomeStatus
 from ..job_manager import JobManager
+from ..reporter import Reporter
+from datetime import datetime, timezone
 
 
-
-    
 @click.command()
 @click.option('--cache-path', default="src/analyst/config/jobs.yaml", help='Path to the job cache file')
 def report_ai_rollout(cache_path):
@@ -190,6 +190,84 @@ def report_job_pipeline(job_id, cache_path):
             take_home_graded_at,
             scheduled_interviews_count,
             completed_interviews_count,
+            recruiter_name,
+            location,
+            department
+        ])
+
+
+@click.command()
+@click.option('--cache-path', default="src/analyst/config/jobs.yaml", help='Path to the job cache file')
+def report_takehome_snapshot(cache_path):
+    """
+    Generate a CSV report on all applications currently at take-home stages.
+    
+    Analyzes all jobs and outputs a CSV with take-home application details.
+    """
+    # Load job manager and client
+    job_manager = JobManager(cache_path)
+    client = GreenhouseClient()
+    
+    # Create reporter and get take-home applications
+    reporter = Reporter(job_manager, client)
+    take_home_applications = reporter.take_home_pipeline_snapshot()
+    
+    # Create CSV writer
+    writer = csv.writer(sys.stdout)
+    
+    # Write CSV header
+    writer.writerow([
+        'candidate_name',
+        'greenhouse_link',
+        'current_take_home_stage',
+        'stage_status',
+        'moved_to_stage_at',
+        'take_home_submitted_at',
+        'take_home_graded_at',
+        'hours_pending_grading',
+        'recruiter_name',
+        'location',
+        'department'
+    ])
+    
+    # Process each take-home application and write to CSV
+    for application in take_home_applications:
+        # Generate Greenhouse link
+        greenhouse_link = f"https://abnormal.greenhouse.io/people/{application.candidate_id}/applications/{application.id}"
+        
+        # Calculate hours pending grading
+        hours_pending_grading = None
+        if application.take_home_submitted_at and not application.take_home_grading:
+            # Calculate time elapsed since submission
+            now = datetime.now(timezone.utc)
+            time_elapsed = now - application.take_home_submitted_at
+            hours_pending_grading = round(time_elapsed.total_seconds() / 3600, 1)
+        
+        # Get recruiter name
+        recruiter_name = "Unknown"
+        if application.job.recruiters:
+            primary_recruiter = application.job.recruiters[0]
+            recruiter_name = f"{primary_recruiter.first_name} {primary_recruiter.last_name}"
+        
+        # Get location and department
+        location = application.job.location.name if application.job.location else "Unknown"
+        department = application.job.departments[0].name if application.job.departments else "Unknown"
+        
+        # Format timestamps
+        moved_to_stage_at = application.moved_to_stage_at.strftime('%Y-%m-%d %H:%M:%S') if application.moved_to_stage_at else None
+        take_home_submitted_at = application.take_home_submitted_at.strftime('%Y-%m-%d %H:%M:%S') if application.take_home_submitted_at else None
+        take_home_graded_at = application.take_home_grading.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if application.take_home_grading else None
+        
+        # Write row to CSV
+        writer.writerow([
+            application.candidate_name,
+            greenhouse_link,
+            application.current_stage.name,
+            application.get_take_home_status().value,
+            moved_to_stage_at,
+            take_home_submitted_at,
+            take_home_graded_at,
+            hours_pending_grading,
             recruiter_name,
             location,
             department
