@@ -1,4 +1,5 @@
 API_KEY = ""
+DOMAIN = "company.greenhouse.com"
 
 DEPARTMENT_MAP = {
     "NAME": "ID",

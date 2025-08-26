@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import List
 
 from .dataclasses import Application
-
+from .config.greenhouse import GREENHOUSE_DOMAIN
 
 class FieldGroup:
     def get_headers(self) -> List[str]:
@@ -18,7 +18,7 @@ class Identifier(FieldGroup):
     
     def get_values(self, application: Application) -> List[str]:
         name = application.candidate_name
-        greenhouse_link = f"https://abnormal.greenhouse.io/people/{application.candidate_id}/applications/{application.id}"
+        greenhouse_link = f"https://{GREENHOUSE_DOMAIN}/people/{application.candidate_id}/applications/{application.id}"
         return [name, greenhouse_link]
 
 
