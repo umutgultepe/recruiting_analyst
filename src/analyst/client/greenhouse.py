@@ -346,6 +346,18 @@ class GreenhouseClient:
                 # Format: "<candidate_name> was moved into <stage_name> for <job_name>"
                 candidate_name = body.split(" was moved into ")[0].strip()
                 break
+
+        if candidate_name is None:
+            candidate_response = self._make_rate_limited_request(
+                "GET", f"{self.base_url}/candidates/{candidate_id}"
+            )
+            if candidate_response.status_code == 200:
+                candidate_data = candidate_response.json()
+                first_name = candidate_data.get("first_name", "")
+                last_name = candidate_data.get("last_name", "")
+                candidate_name = f"{first_name} {last_name}".strip()
+            else:
+                candidate_name = ""
         
         # Handle take-home stage
         if current_stage.is_take_home:
@@ -590,6 +602,44 @@ class GreenhouseClient:
         # Use the shared hydration logic
         return self._hydrate_application(app_data, job, current_stage)
 
+    def _fetch_paginated_applications(self, job_id: str, status: str = "active") -> List[dict]:
+        """
+        Fetch all applications for a job with pagination support.
+        
+        Args:
+            job_id: ID of the job to fetch applications for
+            status: Application status filter (default: "active")
+            
+        Returns:
+            List of all application data dictionaries across all pages
+        """
+        params = {"job_id": job_id, "status": status}
+        all_applications_data = []
+        page = 1
+        per_page = 100
+        params["per_page"] = per_page
+        
+        while True:
+            params["page"] = page
+            response = self._make_rate_limited_request("GET", f"{self.base_url}/applications", params=params)
+            
+            if response.status_code != 200:
+                raise Exception(f"Failed to fetch applications for job {job_id} page {page}: {response.status_code} - {response.text}")
+            
+            page_data = response.json()
+            if not page_data:
+                break
+                
+            all_applications_data.extend(page_data)
+            
+            # If we got fewer results than per_page, we've reached the last page
+            if len(page_data) < per_page:
+                break
+                
+            page += 1
+        
+        return all_applications_data
+
     def get_applications_for_job(self, job: 'Job') -> List['Application']:
         """
         Get all active applications for a specific job from Greenhouse API.
@@ -600,14 +650,8 @@ class GreenhouseClient:
         Returns:
             List of Application objects with populated data
         """
-        # Get applications for the job
-        params = {"job_id": job.id, "status": "active"}
-        response = self._make_rate_limited_request("GET", f"{self.base_url}/applications", params=params)
-        
-        if response.status_code != 200:
-            raise Exception(f"Failed to fetch applications for job {job.id}: {response.status_code} - {response.text}")
-        
-        applications_data = response.json()
+        # Get all applications for the job using pagination
+        applications_data = self._fetch_paginated_applications(job.id, "active")
         applications = []
         
         for app_data in applications_data:
@@ -638,13 +682,17 @@ class GreenhouseClient:
         return applications
 
     def get_take_home_stage_of_applications_for_job(self, job: 'Job') -> List['Application']:
-        params = {"job_id": job.id}
-        response = self._make_rate_limited_request("GET", f"{self.base_url}/applications", params=params)
+        """
+        Get all applications for a job that are at or after the take-home stage.
         
-        if response.status_code != 200:
-            raise Exception(f"Failed to fetch applications for job {job.id}: {response.status_code} - {response.text}")
-        
-        applications_data = response.json()
+        Args:
+            job: Job object to fetch applications for
+            
+        Returns:
+            List of Application objects hydrated for the take-home stage
+        """
+        # Get all applications for the job using pagination (no status filter to get all applications)
+        applications_data = self._fetch_paginated_applications(job.id, "")
         applications = []
         take_home_stage = job.get_take_home_stage()
         
