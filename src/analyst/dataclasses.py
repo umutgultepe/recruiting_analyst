@@ -10,6 +10,7 @@ class RoleFunction(Enum):
 
 
 class Seniority(Enum):
+    Intern = "Intern"
     SWE1 = "SWE1"
     SWE2 = "SWE2"
     Senior = "Senior"
@@ -89,6 +90,29 @@ class Job:
         """
         return self.role.function == RoleFunction.Engineer
 
+    def get_take_home_stage(self) -> Optional[JobStage]:
+        return next((stage for stage in self.stages if stage.is_take_home), None)
+
+    def at_or_after_take_home_submission(self, stage: JobStage) -> bool:
+        if not self.has_take_home_stage():
+            return False
+        take_home_stage = self.get_take_home_stage()
+        if not take_home_stage:
+            return False
+        # If current stage is take home stage
+        if stage.id == take_home_stage.id:
+            return True
+        # If current stage comes after take home stage
+        stage_ids = [s.id for s in self.stages]
+        try:
+            current_index = stage_ids.index(stage.id)
+            take_home_index = stage_ids.index(take_home_stage.id)
+            return current_index >= take_home_index
+        except ValueError:
+            # If stages not found
+            return False
+
+
     def is_ai_enabled(self) -> bool:
         """
         Check if a job has AI-enabled features based on role and stage criteria.
@@ -144,6 +168,13 @@ class ScorecardDecision(Enum):
     YES = "YES"
     STRONG_YES = "STRONG_YES"
 
+
+class ApplicationStatus(Enum):
+    ACTIVE = "active"
+    CONVERTED = "converted"
+    HIRED = "hired"
+    REJECTED = "rejected"
+
 @dataclass
 class Scorecard:
     id: str
@@ -188,6 +219,7 @@ class Application:
     moved_to_stage_at: datetime
     candidate_name: str
     candidate_id: str
+    status: ApplicationStatus
     availability_requested_at: Optional[datetime]
     availability_received_at: Optional[datetime]
     take_home_submitted_at: Optional[datetime]
@@ -207,6 +239,7 @@ class Application:
             return TakeHomeStatus.PENDING_GRADING
         else:
             return TakeHomeStatus.PENDING_SUBMISSION
+
 
     def get_stage_status(self) -> StageStatus:
         if self.interviews:

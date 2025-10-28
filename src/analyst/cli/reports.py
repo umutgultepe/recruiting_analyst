@@ -155,7 +155,27 @@ def report_takehome_snapshot(cache_path):
     ])
     _write_applications_to_stdout(take_home_applications, application_writer)
 
-
+@click.command()
+@click.option('--cache-path', default="src/analyst/config/jobs.yaml", help='Path to the job cache file')
+def report_takehome_statistics(cache_path):
+    """
+    Generate a CSV report on all applications currently at take-home stages.
+    
+    Analyzes all jobs and outputs a CSV with take-home application details.
+    """
+    reporter = get_reporter(cache_path)
+    applications = reporter.take_home_statistics()
+    application_writer = ApplicationCSVWriter([
+        FieldSpec.Identifier,
+        FieldSpec.Status,
+        FieldSpec.CurrentStage,
+        FieldSpec.StageType,
+        FieldSpec.StageTime,
+        FieldSpec.TakeHomeTimes,
+        FieldSpec.TakeHomePendingGrading,
+        FieldSpec.Dimensions
+    ])
+    _write_applications_to_stdout(applications, application_writer)
 
 @click.command()
 @click.option('--cache-path', default="src/analyst/config/jobs.yaml", help='Path to the job cache file')

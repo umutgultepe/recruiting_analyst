@@ -11,6 +11,20 @@ class Reporter:
         self.job_manager = job_manager
         self.client = client
 
+
+    def take_home_statistics(self) -> List[Application]:
+        jobs = self.job_manager.get_all_jobs()
+        ai_enabled_jobs = [job for job in jobs if job.is_ai_enabled()]
+        jobs_with_take_homes = [job for job in ai_enabled_jobs if job.has_take_home_stage()]
+
+        all_applications = []
+
+        for job in jobs_with_take_homes:
+            applications = self.client.get_take_home_stage_of_applications_for_job(job)
+            all_applications.extend(applications)
+
+        return all_applications
+
     def take_home_pipeline_snapshot(self) -> List[Application]:
         jobs = self.job_manager.get_all_jobs()
         ai_enabled_jobs = [job for job in jobs if job.is_ai_enabled()]

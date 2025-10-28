@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from ..config.greenhouse import API_KEY, DEPARTMENT_MAP
-from ..dataclasses import Job, Department, Location, User, Role, RoleFunction, Seniority, JobStage, Interview, Application, TakeHomeGrading, ScheduledInterview, InterviewStatus, Scorecard, ScorecardDecision
+from ..dataclasses import Job, Department, Location, User, Role, RoleFunction, Seniority, JobStage, Interview, Application, ApplicationStatus, TakeHomeGrading, ScheduledInterview, InterviewStatus, Scorecard, ScorecardDecision, ApplicationBlocker, StageStatus, TakeHomeStatus
 
 
 class GreenhouseClient:
@@ -150,7 +150,11 @@ class GreenhouseClient:
                 return users
             
             # Parse role from job name and openings data
-            role = self._parse_role_from_job_name(job_data.get("name", ""), job_data.get("openings", []))
+            try:
+                role = self._parse_role_from_job_name(job_data.get("name", ""), job_data.get("openings", []))
+            except ValueError:
+                print(job_data)
+                raise ValueError(f"Cannot determine seniority for Engineer role in job: {job_data.get('name', '')}")
             
             # Create Job object
             job = Job(
@@ -197,43 +201,40 @@ class GreenhouseClient:
         if function != RoleFunction.Engineer:
             return Role(function=function, seniority=Seniority.Unknown)
         
-        # For Engineer function, try to determine seniority from job name first
-        try:
-            if any(phrase in job_name_lower for phrase in ["software engineer 3", "swe3", "engineer 3", "software engineer iii", "senior software engineer", "senior swe", "senior engineer"]):
-                seniority = Seniority.Senior  # Map SWE3 to Senior
-            elif any(phrase in job_name_lower for phrase in ["software engineer 2", "swe2", "engineer 2", "software engineer ii"]):
-                seniority = Seniority.SWE2
-            elif any(phrase in job_name_lower for phrase in ["software engineer 1", "swe1", "engineer 1", "software engineer i"]):
-                seniority = Seniority.SWE1
-            elif any(phrase in job_name_lower for phrase in ["staff software engineer", "staff swe", "staff engineer"]):
-                seniority = Seniority.Staff
-            else:
-                # If name parsing fails, try to get level from openings custom fields
-                if openings_data:
-                    for opening in openings_data:
-                        custom_fields = opening.get("custom_fields", {})
-                        level = custom_fields.get("level")
-                        if level:
-                            # Map level to seniority
-                            if level == "P2":
-                                seniority = Seniority.SWE1
-                            elif level == "P3":
-                                seniority = Seniority.SWE2
-                            elif level == "P4":
-                                seniority = Seniority.Senior
-                            elif level == "P5":
-                                seniority = Seniority.Staff
-                            else:
-                                continue  # Try next opening if level doesn't match
-                            break  # Found a valid level, break out of openings loop
-                    else:
-                        # No valid level found in any opening
-                        raise ValueError(f"Cannot determine seniority for Engineer role in job: {job_name}")
+        if any(phrase in job_name_lower for phrase in ["software engineer 3", "swe3", "engineer 3", "software engineer iii", "senior software engineer", "senior swe", "senior engineer"]):
+            seniority = Seniority.Senior  # Map SWE3 to Senior
+        elif any(phrase in job_name_lower for phrase in ["software engineer 2", "swe2", "engineer 2", "software engineer ii"]):
+            seniority = Seniority.SWE2
+        elif any(phrase in job_name_lower for phrase in ["software engineer 1", "swe1", "engineer 1", "software engineer i"]):
+            seniority = Seniority.SWE1
+        elif any(phrase in job_name_lower for phrase in ["staff software engineer", "staff swe", "staff engineer"]):
+            seniority = Seniority.Staff
+        else:
+            # If name parsing fails, try to get level from openings custom fields
+            if openings_data:
+                for opening in openings_data:
+                    custom_fields = opening.get("custom_fields", {})
+                    level = custom_fields.get("level")
+                    if level:
+                        # Map level to seniority
+                        if level == "P2":
+                            seniority = Seniority.SWE1
+                        elif level == "P3":
+                            seniority = Seniority.SWE2
+                        elif level == "P4":
+                            seniority = Seniority.Senior
+                        elif level == "P5":
+                            seniority = Seniority.Staff
+                        elif level == "I1":
+                            seniority = Seniority.Intern
+                        else:
+                            continue  # Try next opening if level doesn't match
+                        break  # Found a valid level, break out of openings loop
                 else:
+                    # No valid level found in any opening
                     raise ValueError(f"Cannot determine seniority for Engineer role in job: {job_name}")
-        except ValueError:
-            # Re-raise the ValueError with the original message
-            raise ValueError(f"Cannot determine seniority for Engineer role in job: {job_name}")
+            else:
+                raise ValueError(f"Cannot determine seniority for Engineer role in job: {job_name}")
         
         return Role(function=function, seniority=seniority)
     
@@ -296,6 +297,14 @@ class GreenhouseClient:
         application_id = str(app_data.get("id"))
         candidate_id = str(app_data.get("candidate_id"))
         
+        # Parse application status
+        status_str = app_data.get("status", "active")
+        try:
+            status = ApplicationStatus(status_str)
+        except ValueError:
+            # Default to ACTIVE if status is not recognized
+            status = ApplicationStatus.ACTIVE
+        
         # Check if current stage is relevant
         if not current_stage.is_schedulable and not current_stage.is_take_home:
             # Return basic application without further processing
@@ -306,6 +315,7 @@ class GreenhouseClient:
                 moved_to_stage_at=None,
                 candidate_name=None,
                 candidate_id=candidate_id,
+                status=status,
                 availability_requested_at=None,
                 availability_received_at=None,
                 take_home_submitted_at=None,
@@ -384,6 +394,7 @@ class GreenhouseClient:
                 moved_to_stage_at=moved_to_stage_at,
                 candidate_name=candidate_name,
                 candidate_id=candidate_id,
+                status=status,
                 availability_requested_at=None,
                 availability_received_at=None,
                 take_home_submitted_at=take_home_submitted_at,
@@ -520,6 +531,7 @@ class GreenhouseClient:
             moved_to_stage_at=moved_to_stage_at,
             candidate_name=candidate_name,
             candidate_id=candidate_id,
+            status=status,
             availability_requested_at=availability_requested_at,
             availability_received_at=availability_received_at,
             take_home_submitted_at=None,
@@ -617,6 +629,47 @@ class GreenhouseClient:
             # Hydrate the application using shared logic
             try:
                 application = self._hydrate_application(app_data, job, current_stage)
+                applications.append(application)
+            except Exception as e:
+                # Log error but continue processing other applications
+                print(f"Warning: Failed to hydrate application {app_data.get('id')}: {e}")
+                continue
+        
+        return applications
+
+    def get_take_home_stage_of_applications_for_job(self, job: 'Job') -> List['Application']:
+        params = {"job_id": job.id}
+        response = self._make_rate_limited_request("GET", f"{self.base_url}/applications", params=params)
+        
+        if response.status_code != 200:
+            raise Exception(f"Failed to fetch applications for job {job.id}: {response.status_code} - {response.text}")
+        
+        applications_data = response.json()
+        applications = []
+        take_home_stage = job.get_take_home_stage()
+        
+        for app_data in applications_data:
+            if app_data.get("prospect"):
+                continue
+            current_stage_data = app_data.get("current_stage", {})
+            current_stage_id = str(current_stage_data.get("id"))
+            current_stage = None
+            
+            for stage in job.stages:
+                if stage.id == current_stage_id:
+                    current_stage = stage
+                    break
+            
+            if not current_stage:
+                # Skip applications with unknown stages
+                continue
+
+            if not job.at_or_after_take_home_submission(current_stage):
+                continue
+            
+            # Hydrate the application for the take home stage
+            try:
+                application = self._hydrate_application(app_data, job, take_home_stage)
                 applications.append(application)
             except Exception as e:
                 # Log error but continue processing other applications

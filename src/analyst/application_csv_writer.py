@@ -21,6 +21,13 @@ class Identifier(FieldGroup):
         greenhouse_link = f"https://{GREENHOUSE_DOMAIN}/people/{application.candidate_id}/applications/{application.id}"
         return [name, greenhouse_link]
 
+class Status(FieldGroup):
+    def get_headers(self) -> List[str]:
+        return ["status"]
+    
+    def get_values(self, application: Application) -> List[str]:
+        return [application.status.value]
+
 
 class StageType(FieldGroup):
     def get_headers(self) -> List[str]:
@@ -143,6 +150,7 @@ class BlockContext(FieldGroup):
 
 class FieldSpec:
     Identifier = Identifier()
+    Status = Status()
     CurrentStage = CurrentStage()
     StageType = StageType()
     StageTime = StageTime()
